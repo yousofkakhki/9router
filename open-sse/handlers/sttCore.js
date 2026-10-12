@@ -241,6 +241,49 @@ async function transcribeOpenAICompatible(cfg, file, model, token, formData) {
   return { success: true, response: new Response(txt, { status: 200, headers: { "Content-Type": ct, "Access-Control-Allow-Origin": "*" } }) };
 }
 
+function getCodexAccountId(credentials) {
+  const storedId = credentials?.providerSpecificData?.workspaceId
+    || credentials?.providerSpecificData?.chatgptAccountId
+    || credentials?.providerSpecificData?.accountId;
+  if (storedId) return storedId;
+
+  try {
+    const parts = String(credentials?.idToken || "").split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+    return payload?.["https://api.openai.com/auth"]?.chatgpt_account_id || payload?.account_id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function transcribeCodex(cfg, file, token, formData, credentials) {
+  const body = new FormData();
+  body.append("file", file, file.name || "audio.wav");
+  const language = formData.get("language");
+  if (typeof language === "string" && language.trim()) body.append("language", language.trim());
+
+  const headers = {
+    ...buildAuthHeaders(cfg, token),
+    originator: "Codex Desktop",
+    "User-Agent": `Codex Desktop/0.1.0 (${process.platform}; ${process.arch})`,
+  };
+  const accountId = getCodexAccountId(credentials);
+  if (accountId) headers["ChatGPT-Account-Id"] = accountId;
+
+  const res = await fetch(cfg.baseUrl, {
+    method: "POST",
+    headers,
+    body,
+    redirect: "error",
+    signal: AbortSignal.timeout(300_000),
+  });
+  if (!res.ok) return upstreamError(res);
+  const contentType = res.headers.get("content-type") || "application/json";
+  const text = await res.text();
+  return { success: true, response: new Response(text, { status: 200, headers: { "Content-Type": contentType, "Access-Control-Allow-Origin": "*" } }) };
+}
+
 function jsonResponse(obj) {
   return {
     success: true,
@@ -319,6 +362,7 @@ export async function handleSttCore({ provider, model, formData, credentials, st
       case "huggingface-asr": return await transcribeHuggingFace(cfg, file, model, token);
       case "gemini-stt":      return await transcribeGemini(cfg, file, model, token, formData);
       case "elevenlabs-stt":  return await transcribeElevenLabs(cfg, file, model, token, formData);
+      case "codex-stt":       return await transcribeCodex(cfg, file, token, formData, credentials);
       default:                return await transcribeOpenAICompatible(cfg, file, model, token, formData);
     }
   } catch (err) {

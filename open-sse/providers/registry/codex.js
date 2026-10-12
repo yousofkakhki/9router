@@ -89,8 +89,15 @@ export default {
     { id: "gpt-5.5-image", name: "GPT 5.5 Image", capabilities: ["text2img","edit"], params: ["size","quality","background","image_detail","output_format"], kind: "image" },
     // gpt-5.4-image removed alongside gpt-5.4 (both are dead on the backend) (#4202).
     { id: "gpt-5.3-image", name: "GPT 5.3 Image", capabilities: ["text2img","edit"], params: ["size","quality","background","image_detail","output_format"], kind: "image" },
+    { id: "codex-dictation", name: "Codex Dictation", params: ["language"], kind: "stt" },
   ],
-  serviceKinds: ["llm","image"],
+  serviceKinds: ["llm","image","stt"],
+  sttConfig: {
+    baseUrl: "https://chatgpt.com/backend-api/transcribe",
+    authType: "bearer",
+    authHeader: "bearer",
+    format: "codex-stt",
+  },
   oauth: {
     clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
     authorizeUrl: "https://auth.openai.com/oauth/authorize",
